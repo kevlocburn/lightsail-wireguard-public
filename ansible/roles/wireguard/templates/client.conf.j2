@@ -1,0 +1,12 @@
+[Interface]
+Address = 10.0.0.2/24
+PrivateKey = {{ client_private_key.stdout }}
+ListenPort = 51820
+
+
+[Peer]
+AllowedIPs = 0.0.0.0/0
+Endpoint = {{ server_ip }}:51820
+PersistentKeepalive = 25
+PublicKey = {{ server_public_key.stdout }}
+

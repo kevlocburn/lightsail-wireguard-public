@@ -1,0 +1,115 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    outputs:
+      wireguard_ip: ${{ steps.extract_outputs.outputs.wireguard_ip }}
+      ssh_private_key: ${{ steps.extract_outputs.outputs.ssh_private_key }}
+      ssh_public_key: ${{ steps.extract_outputs.outputs.ssh_public_key }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+        
+      - name: Ensure S3 Bucket Exists
+        run: |
+          aws s3api head-bucket --bucket terraform-lightsail-state 2>/dev/null || \
+          aws s3api create-bucket --bucket terraform-lightsail-state --region us-east-1 && \
+          echo "S3 bucket created or already exists."
+  
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+          terraform_wrapper: false
+  
+      - name: Initialize Terraform
+        run: terraform init --reconfigure
+  
+      - name: Import S3 Bucket
+        run: |
+          terraform import module.state_management.aws_s3_bucket.terraform_state terraform-lightsail-state || \
+          echo "S3 bucket already managed by Terraform."
+
+      - name: Apply Terraform
+        run: terraform apply --auto-approve
+
+      - name: Extract Terraform Outputs
+        id: extract_outputs
+        run: |
+          WIREGUARD_IP=$(terraform output -raw wireguard_ip | tr -d '\r')
+          SSH_PRIVATE_KEY=$(terraform output -raw ssh_private_key | base64 -w 0)
+          SSH_PUBLIC_KEY=$(terraform output -raw ssh_public_key | tr -d '\r')
+
+          # Debugging outputs
+          echo "WIREGUARD_IP=$WIREGUARD_IP"
+          echo "SSH_PRIVATE_KEY=${SSH_PRIVATE_KEY:0:10}..."
+          echo "SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY:0:10}..."
+
+          # Write outputs to GITHUB_OUTPUT
+          echo "writing outputs to GITHUB_OUTPUT"
+          echo "wireguard_ip=$WIREGUARD_IP" >> $GITHUB_OUTPUT
+          echo "ssh_private_key=$SSH_PRIVATE_KEY" >> $GITHUB_OUTPUT
+          echo "ssh_public_key=$SSH_PUBLIC_KEY" >> $GITHUB_OUTPUT
+
+  ansible:
+    runs-on: ubuntu-latest
+    needs: terraform
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ needs.terraform.outputs.ssh_private_key }}" | base64 -d > ~/.ssh/lightsail-key.pem
+          chmod 600 ~/.ssh/lightsail-key.pem
+
+      - name: Test SSH Access
+        run: |
+          ssh -i ~/.ssh/lightsail-key.pem -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform.outputs.wireguard_ip }} "echo 'SSH connection successful'"
+    
+      - name: Install Ansible
+        run: |
+          sudo apt update
+          sudo apt install -y ansible
+
+      - name: Copy Ansible Playbook and Files
+        run: |
+          scp -i ~/.ssh/lightsail-key.pem -o StrictHostKeyChecking=no \
+          -r ./ansible/ ubuntu@${{ needs.terraform.outputs.wireguard_ip }}:/home/ubuntu/
+        
+      - name: Execute Ansible Playbook
+        run: |
+          ssh -i ~/.ssh/lightsail-key.pem -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform.outputs.wireguard_ip }} << EOF
+          sudo apt update
+          sudo apt install -y ansible  
+          cd ~/ansible/
+          ansible-playbook playbook.yml -i inventory.ini --extra-vars "wireguard_ip=${{ needs.terraform.outputs.wireguard_ip }} ssh_public_key=${{ needs.terraform.outputs.ssh_public_key }}"
+          EOF
+
+      - name: Download Client Configuration
+        run: |
+          scp -i ~/.ssh/lightsail-key.pem -o StrictHostKeyChecking=no ubuntu@${{ needs.terraform.outputs.wireguard_ip }}:/home/ubuntu/client-wg0.conf ./client-wg0.conf
+
+      - name: Upload Client Configuration
+        uses: actions/upload-artifact@v4
+        with:
+          name: wireguard-client-config
+          path: ./client-wg0.conf

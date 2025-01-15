@@ -1,0 +1,6 @@
+---
+- name: Configure and Deploy WireGuard
+  hosts: wireguard
+  become: true
+  roles:
+    - wireguard
