@@ -1,13 +1,13 @@
 WireGuard Automation with Terraform, Ansible, and GitHub Actions
 
-🛠️ Technologies Involved
+ Technologies Involved
 
     Terraform: Infrastructure as Code (IaC) tool for provisioning AWS resources.
     Ansible: Configuration management tool to set up and deploy WireGuard VPN on the server.
     WireGuard: Modern VPN software used for secure and fast networking.
     GitHub Actions: CI/CD pipeline for automating deployment and teardown of the infrastructure.
 
-📜 Project Overview
+ Project Overview
 
 This project demonstrates a fully automated process to deploy a WireGuard VPN server on AWS using Terraform, Ansible, and GitHub Actions.
 What It Does:
@@ -24,7 +24,7 @@ What It Does:
             Configure the VPN server.
             Destroy the infrastructure when no longer needed.
 
-🚀 How It Works
+ How It Works
 Pipelines:
 
     Deploy Pipeline:
@@ -35,7 +35,7 @@ Pipelines:
     Destroy Pipeline:
         Tears down the infrastructure, including the server, static IP, and state management resources like the S3 bucket.
 
-📝 Setup Instructions
+ Setup Instructions
 Prerequisites:
 
     AWS Account:
@@ -44,7 +44,7 @@ Prerequisites:
     GitHub Account:
         Fork or copy this repository to your GitHub account.
 
-🔑 Adding Secrets to GitHub
+ Adding Secrets to GitHub
 
     Navigate to your repository's settings on GitHub.
     Go to Secrets and variables > Actions.
@@ -52,7 +52,7 @@ Prerequisites:
         AWS_ACCESS_KEY_ID: Your AWS Access Key ID.
         AWS_SECRET_ACCESS_KEY: Your AWS Secret Access Key.
 
-🛠️ Running the Pipelines
+ Running the Pipelines
 1. Deploy Pipeline:
 
     Push to the main branch or manually trigger the workflow under the "Actions" tab.
@@ -68,7 +68,7 @@ Prerequisites:
         Destroy all resources created by the deploy pipeline.
         Delete the S3 bucket after cleaning its contents.
 
-📂 File Structure
+ File Structure
 
     terraform/:
         Terraform code for AWS Lightsail resources and state management.
@@ -79,7 +79,7 @@ Prerequisites:
     README.md:
         Documentation and setup instructions.
 
-🛡️ Security Notes
+ Security Notes
 
     Secrets Management:
         Ensure AWS credentials are stored securely in GitHub Secrets.
